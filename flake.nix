@@ -3,10 +3,12 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    utils.url = "github:numtide/flake-utils";
   };
 
   outputs = {
     self,
+    utils,
     flake-parts,
     ...
   }:
@@ -66,7 +68,6 @@
         packages.container = with pkgs;
           dockerTools.buildLayeredImage {
             name = "static-site";
-            tag = "2022-11-16";
             config = {
               Cmd = ["${caddy}/bin/caddy " "run" "-config" "${caddy-config}"];
               Env = [
@@ -76,13 +77,15 @@
           };
 
         apps.deploy = with pkgs;
-          writeShellScriptBin "deploy" ''
-            set -euxo pipefail
-            export PATH="${lib.makeBinPath [(docker.override {clientOnly = true;}) flyctl]}:$PATH"
-            archive=${config.packages.container}
-            image=$(docker load < $archive | awk '{ print $3; }')
-            flyctl deploy -i $image
-          '';
+          utils.lib.mkApp {
+            drv = writeShellScriptBin "deploy" ''
+              set -euxo pipefail
+              export PATH="${lib.makeBinPath [(docker.override {clientOnly = true;}) flyctl]}:$PATH"
+              archive=${config.packages.container}
+              image=$(docker load < $archive | awk '{ print $3; }')
+              flyctl deploy -i $image
+            '';
+          };
       };
     };
 }
